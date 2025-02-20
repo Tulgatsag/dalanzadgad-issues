@@ -2,7 +2,7 @@
 const path = require("path");
 
 const app = express();
-const port = process.env.PORT || 3000;  // Энэ мөрийг засах
+const port = process.env.PORT || 3000;  // Render-д зориулж port тохируулга
 
 app.use(express.static("public"));
 
