@@ -15,6 +15,21 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB-тэй амжилттай холбогдлоо'))
   .catch(err => console.error('MongoDB холболтод алдаа гарлаа:', err));
 
+// Нэмэлт Mongoose холболтын logging
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('MongoDB connected successfully');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    // Алдаа гарвал процессыг зогсоох
+    process.exit(1);
+  }
+};
+
 // Issue Model
 const issueSchema = new mongoose.Schema({
   title: String,
@@ -63,6 +78,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// Серверийг эхлүүлэх
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+
+// Database холболтыг дуудах
+connectDB();
