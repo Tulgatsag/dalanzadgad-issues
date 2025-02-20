@@ -10,22 +10,16 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
-// MongoDB холболт
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB-тэй амжилттай холбогдлоо'))
-  .catch(err => console.error('MongoDB холболтод алдаа гарлаа:', err));
-
-// Нэмэлт Mongoose холболтын logging
+// MongoDB холболтын функц
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
-    console.log('MongoDB connected successfully');
+    console.log('MongoDB-тэй амжилттай холбогдлоо');
   } catch (err) {
-    console.error('MongoDB connection error:', err);
-    // Алдаа гарвал процессыг зогсоох
+    console.error('MongoDB холболтод алдаа гарлаа:', err);
     process.exit(1);
   }
 };
