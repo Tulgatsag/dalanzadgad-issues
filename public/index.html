@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Даланзадгад Хотын Асуудал Бүртгэх</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #map { height: 400px; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <div class="p-4 bg-gray-800 text-white">
+                <h1 class="text-2xl font-bold">Даланзадгад Хотын Асуудал Бүртгэх</h1>
+            </div>
+            
+            <div class="flex flex-col md:flex-row">
+                <div class="w-full md:w-2/3 p-4">
+                    <div id="map" class="border rounded-lg"></div>
+                </div>
+                
+                <div class="w-full md:w-1/3 p-4 space-y-4">
+                    <div>
+                        <label class="block mb-2 font-semibold">Байршил:</label>
+                        <div id="locationInfo" class="text-gray-600">
+                            <p id="manualLocationText">Газрын зураг дээр байршлаа сонгоно уу</p>
+                            <button id="getCurrentLocationBtn" class="mt-2 bg-green-500 text-white px-3 py-1 rounded">
+                                Миний байршил
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <select 
+                        id="issueCategory" 
+                        class="w-full p-2 border rounded"
+                    >
+                        <option value="">Асуудлын ангилал сонгох</option>
+                        <option value="road">Зам, тээврийн асуудал</option>
+                        <option value="communal">Хот тохижилт</option>
+                        <option value="utilities">Инженерийн шугам сүлжээ</option>
+                        <option value="social">Нийгмийн үйлчилгээ</option>
+                        <option value="environment">Байгаль орчин</option>
+                        <option value="other">Бусад</option>
+                    </select>
+                    
+                    <textarea 
+                        id="issueDescription" 
+                        placeholder="Асуудлын дэлгэрэнгүй тайлбар..." 
+                        class="w-full p-2 border rounded"
+                        rows="4"
+                    ></textarea>
+                    
+                    <div>
+                        <input 
+                            type="file" 
+                            id="imageUpload" 
+                            accept="image/*" 
+                            class="hidden"
+                        />
+                        <label 
+                            for="imageUpload" 
+                            class="w-full block text-center cursor-pointer bg-gray-200 hover:bg-gray-300 p-2 rounded"
+                        >
+                            🖼️ Зураг оруулах
+                        </label>
+                        <img 
+                            id="selectedImage" 
+                            class="max-w-48 max-h-48 mt-2 hidden" 
+                            alt="Сонгосон зураг"
+                        />
+                    </div>
+                    
+                    <button 
+                        id="addIssueBtn" 
+                        class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                        disabled
+                    >
+                        Асуудал бүртгэх
+                    </button>
+                </div>
+            </div>
+            
+            <div id="issuesList" class="p-4 bg-gray-50">
+                <h2 class="text-xl font-semibold mb-4">Бүртгэсэн Асуудлууд</h2>
+                <div id="issuesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Даланзадгад хотын эхлэх координат
+        const DALANZADGAD_LAT = 43.5725;
+        const DALANZADGAD_LNG = 104.4372;
+
+        // Газрын зураг үүсгэх
+        const map = L.map('map').setView([DALANZADGAD_LAT, DALANZADGAD_LNG], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // DOM элементүүд
+        const locationInfo = document.getElementById('locationInfo');
+        const manualLocationText = document.getElementById('manualLocationText');
+        const getCurrentLocationBtn = document.getElementById('getCurrentLocationBtn');
+        const issueCategory = document.getElementById('issueCategory');
+        const issueDescription = document.getElementById('issueDescription');
+        const imageUpload = document.getElementById('imageUpload');
+        const selectedImage = document.getElementById('selectedImage');
+        const addIssueBtn = document.getElementById('addIssueBtn');
+        const issuesContainer = document.getElementById('issuesContainer');
+
+        // Хувьсагчид
+        let currentLocation = null;
+        let issues = [];
+        let currentMarker = null;
+
+        // Газрын зураг дээр товших үеийн үйл явц
+        map.on('click', (e) => {
+            // Өмнөх маркерыг устгах
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+
+            // Шинэ маркер үүсгэх
+            currentLocation = e.latlng;
+            currentMarker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+            
+            manualLocationText.textContent = `Өргөрөг: ${currentLocation.lat.toFixed(4)}, Уртраг: ${currentLocation.lng.toFixed(4)}`;
+            validateForm();
+        });
+
+        // Хэрэглэгчийн байршлыг авах
+        getCurrentLocationBtn.addEventListener('click', () => {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    // Өмнөх маркерыг устгах
+                    if (currentMarker) {
+                        map.removeLayer(currentMarker);
+                    }
+
+                    // Шинэ байршил авах
+                    currentLocation = {
+                        lat: position.coords.latitude, 
+                        lng: position.coords.longitude
+                    };
+
+                    // Шинэ маркер үүсгэх
+                    currentMarker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(map);
+                    
+                    // Газрын зургийг шинэ байршил руу шилжүүлэх
+                    map.setView([currentLocation.lat, currentLocation.lng], 15);
+                    
+                    manualLocationText.textContent = `Өргөрөг: ${currentLocation.lat.toFixed(4)}, Уртраг: ${currentLocation.lng.toFixed(4)}`;
+                    validateForm();
+                }, (error) => {
+                    alert('Байршил авахад алдаа гарлаа: ' + error.message);
+                });
+            } else {
+                alert('Таны төхөөрөмж байршил тодорхойлох боломжгүй байна.');
+            }
+        });
+
+        // Зураг сонгох үйл явц
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    selectedImage.src = event.target.result;
+                    selectedImage.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Формын үйл явцыг шалгах
+        function validateForm() {
+            const hasLocation = !!currentLocation;
+            const hasDescription = issueDescription.value.trim() !== '';
+            const hasCategory = issueCategory.value !== '';
+            addIssueBtn.disabled = !(hasLocation && hasDescription && hasCategory);
+        }
+
+        // Асуудал нэмэх үйл явц
+        addIssueBtn.addEventListener('click', () => {
+            if (!currentLocation || !issueDescription.value.trim() || !issueCategory.value) return;
+
+            // Шинэ асуудал үүсгэх
+            const newIssue = {
+                id: Date.now(),
+                location: currentLocation,
+                description: issueDescription.value.trim(),
+                category: issueCategory.value,
+                image: selectedImage.src
+            };
+
+            // Өнгө сонгох
+            const categoryColors = {
+                'road': 'red',
+                'communal': 'blue',
+                'utilities': 'green',
+                'social': 'purple',
+                'environment': 'orange',
+                'other': 'gray'
+            };
+
+            // Маркер үүсгэх
+            const marker = L.marker(
+                [newIssue.location.lat, newIssue.location.lng], 
+                {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="background-color:${categoryColors[newIssue.category] || 'gray'}; 
+                               width: 20px; height: 20px; border-radius: 50%;"></div>`,
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15]
+                    })
+                }
+            )
+            .addTo(map)
+            .bindPopup(`
+                <div>
+                    <strong>Ангилал:</strong> ${getCategortLabel(newIssue.category)}<br>
+                    <p>${newIssue.description}</p>
+                    ${newIssue.image ? `<img src="${newIssue.image}" alt="Асуудлын зураг" style="max-width:200px; max-height:200px;"/>` : ''}
+                </div>
+            `);
+
+            // Асуудлуудын жагсаалтад нэмэх
+            issues.push(newIssue);
+            renderIssues();
+
+            // Формыг цэвэрлэх
+            currentLocation = null;
+            manualLocationText.textContent = 'Газрын зураг дээр байршлаа сонгоно уу';
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            issueDescription.value = '';
+            issueCategory.value = '';
+            selectedImage.src = '';
+            selectedImage.classList.add('hidden');
+            imageUpload.value = '';
+            addIssueBtn.disabled = true;
+        });
+
+        // Ангиллын шошгыг хөрвүүлэх
+        function getCategortLabel(category) {
+            const labels = {
+                'road': 'Зам, тээврийн асуудал',
+                'communal': 'Хот тохижилт',
+                'utilities': 'Инженерийн шугам сүлжээ',
+                'social': 'Нийгмийн үйлчилгээ',
+                'environment': 'Байгаль орчин',
+                'other': 'Бусад'
+            };
+            return labels[category] || category;
+        }
+
+        // Асуудлуудыг дэлгэцэн дээр харуулах
+        function renderIssues() {
+            issuesContainer.innerHTML = issues.map(issue => `
+                <div class="bg-white shadow rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <div class="w-4 h-4 mr-2 rounded-full" style="background-color:${
+                            {
+                                'road': 'red',
+                                'communal': 'blue',
+                                'utilities': 'green',
+                                'social': 'purple',
+                                'environment': 'orange',
+                                'other': 'gray'
+                            }[issue.category] || 'gray'
+                        }"></div>
+                        <p class="font-semibold">${getCategortLabel(issue.category)}</p>
+                    </div>
+                    <p class="text-sm mb-2">${issue.description}</p>
+                    <p class="text-xs text-gray-600 mb-2">
+                        Байршил: ${issue.location.lat.toFixed(4)}, ${issue.location.lng.toFixed(4)}
+                    </p>
+                    ${issue.image ? `
+                        <img 
+                            src="${issue.image}" 
+                            alt="Асуудлын зураг" 
+                            class="w-full h-48 object-cover rounded"
+                        />
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Формын өөрчлөлтийг сонсох
+        issueDescription.addEventListener('input', validateForm);
+        issueCategory.addEventListener('change', validateForm);
+    </script>
+</body>
+</html>
