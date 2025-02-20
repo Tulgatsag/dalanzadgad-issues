@@ -13,13 +13,16 @@ app.use(express.static("public"));
 // MongoDB холболтын функц
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('MongoDB-тэй амжилттай холбогдлоо');
   } catch (err) {
     console.error('MongoDB холболтод алдаа гарлаа:', err);
+    console.error('Error details:', {
+      message: err.message,
+      name: err.name,
+      code: err.code,
+      stack: err.stack
+    });
     process.exit(1);
   }
 };
